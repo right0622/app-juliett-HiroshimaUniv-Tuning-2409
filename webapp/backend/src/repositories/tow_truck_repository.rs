@@ -104,16 +104,12 @@ impl TowTruckRepository for TowTruckRepositoryImpl {
             "SELECT
                 tt.id, tt.driver_id, u.username AS driver_username, tt.status, l.node_id, tt.area_id
             FROM
-                tow_trucks tt
-            JOIN
-                users u 
-            ON
-                tt.driver_id = u.id
-            JOIN
-                locations l
-            ON
-                tt.id = l.tow_truck_id
+                tow_trucks tt, users u, locations l
             WHERE
+                tt.driver_id = u.id
+            AND
+                tt.id = l.tow_truck_id
+            AND
                 tt.id = ?
             AND
                 l.timestamp = (SELECT MAX(timestamp) FROM locations WHERE tow_truck_id = tt.id)",
