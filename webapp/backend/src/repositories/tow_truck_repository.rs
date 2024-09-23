@@ -104,7 +104,7 @@ impl TowTruckRepository for TowTruckRepositoryImpl {
             "SELECT
                 tt.id, tt.driver_id, u.username AS driver_username, tt.status, l.node_id, tt.area_id
             FROM
-                (SELECT * FROM tow_trucks WHERE tow_trucks.id = ?) AS tt
+                tow_trucks tt
             JOIN
                 users u 
             ON
@@ -114,6 +114,8 @@ impl TowTruckRepository for TowTruckRepositoryImpl {
             ON
                 tt.id = l.tow_truck_id
             WHERE
+                tt.id = ?
+            AND
                 l.timestamp = (SELECT MAX(timestamp) FROM locations WHERE tow_truck_id = tt.id)",
         )
         .bind(id)
