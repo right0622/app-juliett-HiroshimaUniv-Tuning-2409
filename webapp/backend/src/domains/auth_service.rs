@@ -1,3 +1,8 @@
+use std::io::Cursor;
+use image::imageops::FilterType;
+use image::ImageOutputFormat;
+use image::io::Reader as ImageReader;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -171,27 +176,35 @@ impl<T: AuthRepository + std::fmt::Debug> AuthService<T> {
         let path: PathBuf =
             Path::new(&format!("images/user_profile/{}", profile_image_name)).to_path_buf();
 
-        let output = Command::new("convert")
-            .arg(&path)
-            .arg("-resize")
-            .arg(format!("{}x{}!", width, height))
-            .arg("png:-")
-            .output()
-            .map_err(|e| {
-                error!("画像リサイズのコマンド実行に失敗しました: {:?}", e);
-                AppError::InternalServerError
-            })?;
+        // 指定されたパスから画像を読み込む
+        let img = ImageReader::open(&path)
+        .map_err(|e| {
+            error!("画像の読み込みに失敗しました: {:?}", e);
+            AppError::InternalServerError
+        })?
+        .decode()
+        .map_err(|e| {
+            error!("画像のデコードに失敗しました: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
-        match output.status.success() {
-            true => Ok(Bytes::from(output.stdout)),
-            false => {
-                error!(
-                    "画像リサイズのコマンド実行に失敗しました: {:?}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-                Err(AppError::InternalServerError)
-            }
-        }
+        // 画像を指定された寸法にリサイズする
+        let resized = img.resize_exact(
+            width.try_into().map_err(|_| AppError::BadRequest)?,
+            height.try_into().map_err(|_| AppError::BadRequest)?,
+            FilterType::Lanczos3
+        );        
+
+        // リサイズした画像をPNG形式でバッファに書き込む
+        let mut buffer = Vec::new();
+        resized.write_to(&mut Cursor::new(&mut buffer), ImageOutputFormat::Png)
+        .map_err(|e| {
+            error!("画像の書き込みに失敗しました: {:?}", e);
+            AppError::InternalServerError
+        })?;
+
+        // バッファからBytesを生成して返す
+        Ok(Bytes::from(buffer))
     }
 
     pub async fn validate_session(&self, session_token: &str) -> Result<bool, AppError> {

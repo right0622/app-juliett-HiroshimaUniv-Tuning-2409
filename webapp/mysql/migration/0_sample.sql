@@ -17,3 +17,9 @@ CREATE INDEX idx_edges_node_b_id ON edges (node_b_id);
 
 -- locationsテーブルにインデックスを追加
 CREATE INDEX idx_locations_tow_truck_id ON locations (tow_truck_id);
+CREATE INDEX idx_locations_tow_truck_id_timestamp ON locations(tow_truck_id, timestamp DESC);
+
+-- tow_trucksテーブルにインデックスを追加
+CREATE INDEX idx_tow_trucks_driver_id ON tow_trucks(driver_id);
+CREATE INDEX idx_tow_trucks_area_id ON tow_trucks(area_id);
+CREATE INDEX idx_tow_trucks_status ON tow_trucks(status);
