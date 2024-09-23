@@ -44,6 +44,7 @@ services:
   db:
     container_name: tuning-mysql
     image: hirouniv2409.azurecr.io/mysql:latest
+    user: 1000:1000
     environment:
       MYSQL_ROOT_PASSWORD: mysql
       MYSQL_DATABASE: hirouniv-db
