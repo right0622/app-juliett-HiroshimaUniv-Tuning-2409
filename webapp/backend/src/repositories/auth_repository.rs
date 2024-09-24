@@ -72,13 +72,13 @@ impl AuthRepository for AuthRepositoryImpl {
     }
 
     async fn delete_session(&self, session_token: &str) -> Result<(), AppError> {
-        sqlx::query("DELETE FROM sessions WHERE session_token = ?")
+        sqlx::query("UPDATE sessions SET is_valid = false WHERE session_token = ?")
             .bind(session_token)
             .execute(&self.pool)
             .await?;
-
+    
         Ok(())
-    }
+    }    
 
     async fn find_session_by_session_token(
         &self,

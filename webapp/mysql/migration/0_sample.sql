@@ -1,8 +1,8 @@
 -- このファイルに記述されたSQLコマンドが、マイグレーション時に実行されます。
--- users テーブル
+-- users テーブルにインデックスを追加
 CREATE INDEX idx_users_username ON users (username);
 
--- sessions テーブル
+-- sessions テーブルにインデックスを追加
 CREATE INDEX idx_sessions_session_token ON sessions (session_token);
 
 -- dispatchers テーブルにインデックスを追加
@@ -23,3 +23,9 @@ CREATE INDEX idx_locations_tow_truck_id_timestamp ON locations(tow_truck_id, tim
 CREATE INDEX idx_tow_trucks_driver_id ON tow_trucks(driver_id);
 CREATE INDEX idx_tow_trucks_area_id ON tow_trucks(area_id);
 CREATE INDEX idx_tow_trucks_status ON tow_trucks(status);
+
+-- ordersテーブルにインデックスを追加
+CREATE INDEX idx_orders_client_id ON orders (client_id);
+CREATE INDEX idx_orders_dispatcher_id ON orders (dispatcher_id);
+CREATE INDEX idx_orders_tow_truck_id ON orders (tow_truck_id);
+CREATE INDEX idx_orders_node_id ON orders (node_id);
