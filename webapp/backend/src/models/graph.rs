@@ -25,15 +25,14 @@ pub struct Graph {
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 struct State {
-    f_score: i32,
-    g_score: i32,
+    cost: i32,
     node: i32,
 }
 
+// Rust の BinaryHeap は最大ヒープなので、Ord と PartialOrd を逆にして最小ヒープとして使用
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.f_score.cmp(&self.f_score)
-            .then_with(|| self.g_score.cmp(&other.g_score))
+        other.cost.cmp(&self.cost)
             .then_with(|| self.node.cmp(&other.node))
     }
 }
@@ -74,48 +73,35 @@ impl Graph {
     }
 
     pub fn shortest_path(&self, from_node_id: i32, to_node_id: i32) -> i32 {
-        let mut g_scores: HashMap<i32, i32> = HashMap::new();
+        let mut dist: HashMap<i32, i32> = HashMap::new();
         let mut heap = BinaryHeap::new();
 
-        // ヒューリスティック関数：マンハッタン距離
-        let h = |node: i32| -> i32 {
-            let from = self.nodes.get(&node).unwrap();
-            let to = self.nodes.get(&to_node_id).unwrap();
-            ((from.x - to.x).abs() + (from.y - to.y).abs()) as i32
-        };
-
         // 開始ノードをヒープに追加
-        heap.push(State {
-            f_score: h(from_node_id),
-            g_score: 0,
-            node: from_node_id
-        });
-        g_scores.insert(from_node_id, 0);
+        heap.push(State { cost: 0, node: from_node_id });
+        dist.insert(from_node_id, 0);
 
-        while let Some(State { f_score: _, g_score, node }) = heap.pop() {
+        while let Some(State { cost, node }) = heap.pop() {
             // 目的地に到達した場合、コストを返す
             if node == to_node_id {
-                return g_score;
+                return cost;
             }
 
             // より高コストの経路を見つけた場合はスキップ
-            if g_score > *g_scores.get(&node).unwrap_or(&i32::MAX) {
+            if cost > *dist.get(&node).unwrap_or(&i32::MAX) {
                 continue;
             }
 
             // 隣接ノードを探索
             if let Some(edges) = self.edges.get(&node) {
                 for edge in edges {
-                    let next_g_score = g_score + edge.weight;
                     let next = State {
-                        f_score: next_g_score + h(edge.node_b_id),
-                        g_score: next_g_score,
+                        cost: cost + edge.weight,
                         node: edge.node_b_id,
                     };
 
-                    // より短い経路が見つかった場合、スコアを更新してヒープに追加
-                    if next.g_score < *g_scores.get(&next.node).unwrap_or(&i32::MAX) {
-                        g_scores.insert(next.node, next.g_score);
+                    // より短い経路が見つかった場合、距離を更新してヒープに追加
+                    if next.cost < *dist.get(&next.node).unwrap_or(&i32::MAX) {
+                        dist.insert(next.node, next.cost);
                         heap.push(next);
                     }
                 }
