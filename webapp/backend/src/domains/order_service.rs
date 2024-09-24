@@ -86,7 +86,6 @@ impl<
             .find_user_by_id(order.client_id)
             .await
             .unwrap()
-            .unwrap()
             .username;
 
         let dispatcher = match order.dispatcher_id {
@@ -105,7 +104,6 @@ impl<
                     self.auth_repository
                         .find_user_by_id(dispatcher.user_id)
                         .await
-                        .unwrap()
                         .unwrap()
                         .username,
                 ),
@@ -129,7 +127,6 @@ impl<
                     self.auth_repository
                         .find_user_by_id(tow_truck.driver_id)
                         .await
-                        .unwrap()
                         .unwrap()
                         .username,
                 ),
@@ -184,7 +181,6 @@ impl<
                 .find_user_by_id(order.client_id)
                 .await
                 .unwrap()
-                .unwrap()
                 .username;
 
             let dispatcher = match order.dispatcher_id {
@@ -203,7 +199,6 @@ impl<
                         self.auth_repository
                             .find_user_by_id(dispatcher.user_id)
                             .await
-                            .unwrap()
                             .unwrap()
                             .username,
                     ),
@@ -227,7 +222,6 @@ impl<
                         self.auth_repository
                             .find_user_by_id(tow_truck.driver_id)
                             .await
-                            .unwrap()
                             .unwrap()
                             .username,
                     ),
