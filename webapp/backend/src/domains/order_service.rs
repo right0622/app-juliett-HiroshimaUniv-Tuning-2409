@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+use futures::future::try_join_all;
+use std::collections::HashMap;
 
 use super::{
     auth_service::AuthRepository, dto::order::OrderDto, map_service::MapRepository,
@@ -175,91 +177,130 @@ impl<
             .order_repository
             .get_paginated_orders(page, page_size, sort_by, sort_order, status, area)
             .await?;
-
-        let mut results = Vec::new();
-
-        for order in orders {
-            let client_username = self
-                .auth_repository
-                .find_user_by_id(order.client_id)
-                .await
-                .unwrap()
-                .unwrap()
-                .username;
-
-            let dispatcher = match order.dispatcher_id {
-                Some(dispatcher_id) => self
-                    .auth_repository
-                    .find_dispatcher_by_id(dispatcher_id)
-                    .await
-                    .unwrap(),
-                None => None,
-            };
-
-            let (dispatcher_user_id, dispatcher_username) = match dispatcher {
-                Some(dispatcher) => (
-                    Some(dispatcher.user_id),
-                    Some(
-                        self.auth_repository
-                            .find_user_by_id(dispatcher.user_id)
-                            .await
-                            .unwrap()
-                            .unwrap()
-                            .username,
-                    ),
-                ),
-                None => (None, None),
-            };
-
-            let tow_truck = match order.tow_truck_id {
-                Some(tow_truck_id) => self
-                    .tow_truck_repository
-                    .find_tow_truck_by_id(tow_truck_id)
-                    .await
-                    .unwrap(),
-                None => None,
-            };
-
-            let (driver_user_id, driver_username) = match tow_truck {
-                Some(tow_truck) => (
-                    Some(tow_truck.driver_id),
-                    Some(
-                        self.auth_repository
-                            .find_user_by_id(tow_truck.driver_id)
-                            .await
-                            .unwrap()
-                            .unwrap()
-                            .username,
-                    ),
-                ),
-                None => (None, None),
-            };
-
-            let order_area_id = self
-                .map_repository
-                .get_area_id_by_node_id(order.node_id)
-                .await
-                .unwrap();
-
-            results.push(OrderDto {
-                id: order.id,
-                client_id: order.client_id,
-                client_username: Some(client_username),
-                dispatcher_id: order.dispatcher_id,
-                dispatcher_user_id,
-                dispatcher_username,
-                tow_truck_id: order.tow_truck_id,
-                driver_user_id,
-                driver_username,
-                area_id: order_area_id,
-                status: order.status,
-                node_id: order.node_id,
-                car_value: order.car_value,
-                order_time: order.order_time,
-                completed_time: order.completed_time,
-            });
-        }
-
+    
+        // 必要なIDを一括取得
+        let client_ids: Vec<i32> = orders.iter().map(|order| order.client_id).collect();
+        let dispatcher_ids: Vec<i32> = orders
+            .iter()
+            .filter_map(|order| order.dispatcher_id)
+            .collect();
+        let tow_truck_ids: Vec<i32> = orders
+            .iter()
+            .filter_map(|order| order.tow_truck_id)
+            .collect();
+        let node_ids: Vec<i32> = orders.iter().map(|order| order.node_id).collect();
+    
+        // クライアントユーザー名を一括取得
+        let clients = self
+            .auth_repository
+            .find_users_by_ids(&client_ids)
+            .await?
+            .into_iter()
+            .map(|user| (user.id, user.username))
+            .collect::<HashMap<i32, String>>();
+    
+        // ディスパッチャー情報を一括取得
+        let dispatchers = self
+            .auth_repository
+            .find_dispatchers_by_ids(&dispatcher_ids)
+            .await?
+            .into_iter()
+            .map(|dispatcher| (dispatcher.id, dispatcher))
+            .collect::<HashMap<i32, _>>();
+    
+        let dispatcher_user_ids: Vec<i32> = dispatchers
+            .values()
+            .map(|dispatcher| dispatcher.user_id)
+            .collect();
+    
+        let dispatcher_users = self
+            .auth_repository
+            .find_users_by_ids(&dispatcher_user_ids)
+            .await?
+            .into_iter()
+            .map(|user| (user.id, user.username))
+            .collect::<HashMap<i32, String>>();
+    
+        // トラック情報を一括取得
+        let tow_trucks = self
+            .tow_truck_repository
+            .find_tow_trucks_by_ids(&tow_truck_ids)
+            .await?
+            .into_iter()
+            .map(|truck| (truck.id, truck))
+            .collect::<HashMap<i32, _>>();
+    
+        let driver_user_ids: Vec<i32> = tow_trucks
+            .values()
+            .map(|truck| truck.driver_id)
+            .collect();
+    
+        let drivers = self
+            .auth_repository
+            .find_users_by_ids(&driver_user_ids)
+            .await?
+            .into_iter()
+            .map(|user| (user.id, user.username))
+            .collect::<HashMap<i32, String>>();
+    
+        // エリアIDを一括取得
+        let area_ids = self
+            .map_repository
+            .get_area_ids_by_node_ids(&node_ids)
+            .await?
+            .into_iter()
+            .collect::<HashMap<i32, i32>>();
+    
+        // OrderDtoを一括作成
+        let results = orders
+            .into_iter()
+            .map(|order| {
+                let client_username = clients.get(&order.client_id).cloned();
+    
+                let (dispatcher_user_id, dispatcher_username) = if let Some(dispatcher_id) = order.dispatcher_id {
+                    if let Some(dispatcher) = dispatchers.get(&dispatcher_id) {
+                        let username = dispatcher_users.get(&dispatcher.user_id).cloned();
+                        (Some(dispatcher.user_id), username)
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                };
+    
+                let (driver_user_id, driver_username) = if let Some(tow_truck_id) = order.tow_truck_id {
+                    if let Some(tow_truck) = tow_trucks.get(&tow_truck_id) {
+                        let username = drivers.get(&tow_truck.driver_id).cloned();
+                        (Some(tow_truck.driver_id), username)
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                };
+    
+                let area_id = area_ids.get(&order.node_id).cloned().unwrap_or(0);
+    
+                OrderDto {
+                    id: order.id,
+                    client_id: order.client_id,
+                    client_username,
+                    dispatcher_id: order.dispatcher_id,
+                    dispatcher_user_id,
+                    dispatcher_username,
+                    tow_truck_id: order.tow_truck_id,
+                    driver_user_id,
+                    driver_username,
+                    area_id,
+                    status: order.status.clone(),
+                    node_id: order.node_id,
+                    car_value: order.car_value,
+                    order_time: order.order_time,
+                    completed_time: order.completed_time,
+                }
+            })
+            .collect();
+    
         Ok(results)
     }
 
